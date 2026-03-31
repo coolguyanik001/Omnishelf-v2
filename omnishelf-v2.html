@@ -1,0 +1,1849 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#0f172a"/>
+<title>OmniShelf</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.4/dexie.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════
+   THEME SYSTEM — Blue-Gray-Green (Slate · Emerald · Teal)
+   ═══════════════════════════════════════════════════════ */
+:root {
+  /* Dark theme (default) */
+  --bg:        #0f172a;  /* slate-900 */
+  --bg2:       #1e293b;  /* slate-800 */
+  --bg3:       #263347;  /* slate-750 */
+  --bg4:       #2e3f55;  /* slate-700 */
+  --border:    #334155;  /* slate-600 */
+  --border2:   #475569;  /* slate-500 */
+  --text:      #f1f5f9;  /* slate-100 */
+  --text2:     #94a3b8;  /* slate-400 */
+  --text3:     #64748b;  /* slate-500 */
+  --accent:    #10b981;  /* emerald-500 */
+  --accent2:   #34d399;  /* emerald-400 */
+  --accent3:   #6ee7b7;  /* emerald-300 */
+  --teal:      #0f766e;  /* teal-700 */
+  --teal2:     #14b8a6;  /* teal-500 */
+  --slate:     #475569;  /* slate-600 */
+  --red:       #f87171;
+  --amber:     #fbbf24;
+  --purple:    #a78bfa;
+  --shadow:    rgba(0,0,0,.5);
+  --shadow2:   rgba(0,0,0,.25);
+  --card-hover-shadow: 0 12px 32px rgba(16,185,129,.08);
+  --radius:    10px;
+  --radius2:   16px;
+  --font-display: 'Instrument Serif', serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'DM Mono', monospace;
+  --transition:   0.2s cubic-bezier(.4,0,.2,1);
+  --sidebar-w:    264px;
+  --topbar-h:     58px;
+}
+
+[data-theme="light"] {
+  --bg:        #f8fafc;  /* slate-50 */
+  --bg2:       #ffffff;
+  --bg3:       #f1f5f9;  /* slate-100 */
+  --bg4:       #e2e8f0;  /* slate-200 */
+  --border:    #e2e8f0;
+  --border2:   #cbd5e1;  /* slate-300 */
+  --text:      #0f172a;  /* slate-900 */
+  --text2:     #475569;  /* slate-600 */
+  --text3:     #94a3b8;  /* slate-400 */
+  --accent:    #059669;  /* emerald-600 */
+  --accent2:   #10b981;  /* emerald-500 */
+  --accent3:   #34d399;
+  --teal:      #0f766e;
+  --teal2:     #0d9488;  /* teal-600 */
+  --shadow:    rgba(15,23,42,.12);
+  --shadow2:   rgba(15,23,42,.06);
+  --card-hover-shadow: 0 12px 32px rgba(16,185,129,.12);
+}
+
+/* ═══════ RESET & BASE ═══════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; font-family: var(--font-body);
+  background: var(--bg); color: var(--text);
+  overflow: hidden; -webkit-font-smoothing: antialiased;
+}
+#app { display: flex; height: 100dvh; width: 100vw; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* ═══════ SIDEBAR ═══════ */
+#sidebar {
+  width: var(--sidebar-w); min-width: var(--sidebar-w);
+  background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; height: 100dvh;
+  overflow: hidden; transition: width .25s ease, min-width .25s ease, transform .25s ease;
+  position: relative; z-index: 50; flex-shrink: 0;
+}
+#sidebar.collapsed { width: 56px; min-width: 56px; }
+
+/* Mobile: slide-over drawer */
+@media (max-width: 768px) {
+  #sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    transform: translateX(-100%); width: var(--sidebar-w) !important;
+    min-width: var(--sidebar-w) !important; box-shadow: 4px 0 20px var(--shadow);
+  }
+  #sidebar.mobile-open { transform: translateX(0); }
+  #mobile-overlay { display: block !important; }
+}
+
+#mobile-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  z-index: 40; backdrop-filter: blur(2px);
+}
+
+.sidebar-logo {
+  padding: 18px 16px 14px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+.logo-mark {
+  width: 34px; height: 34px; min-width: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--teal), var(--accent));
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.logo-mark svg { color: white; }
+.logo-text {
+  font-family: var(--font-display); font-size: 21px; font-weight: 400;
+  color: var(--text); white-space: nowrap; overflow: hidden;
+  letter-spacing: -.01em;
+}
+.logo-text span { color: var(--accent2); font-style: italic; }
+
+.sidebar-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.sidebar-section { padding: 8px 0; }
+.sidebar-label {
+  font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text3); padding: 4px 16px 6px; white-space: nowrap; overflow: hidden;
+  transition: opacity .2s;
+}
+#sidebar.collapsed .sidebar-label { opacity: 0; }
+
+.sidebar-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 16px;
+  cursor: pointer; color: var(--text2); font-size: 13.5px;
+  position: relative; white-space: nowrap; overflow: hidden;
+  transition: background var(--transition), color var(--transition);
+  user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.sidebar-item:hover { background: var(--bg3); color: var(--text); }
+.sidebar-item.active { background: var(--bg3); color: var(--accent2); }
+.sidebar-item.active::before {
+  content: ''; position: absolute; left: 0; top: 4px; bottom: 4px;
+  width: 3px; background: var(--accent); border-radius: 0 3px 3px 0;
+}
+.sidebar-item svg { flex-shrink: 0; }
+.sidebar-count {
+  margin-left: auto; font-size: 10.5px; font-family: var(--font-mono);
+  background: var(--bg4); color: var(--text3);
+  padding: 1px 6px; border-radius: 8px; flex-shrink: 0;
+}
+.sidebar-divider { height: 1px; background: var(--border); margin: 4px 8px; }
+
+.sidebar-bottom {
+  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.collapse-btn {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 7px 16px; cursor: pointer; color: var(--text3); font-size: 13px;
+  background: none; border: none; font-family: var(--font-body);
+  transition: color var(--transition);
+}
+.collapse-btn:hover { color: var(--text); }
+
+/* ═══════ MAIN ═══════ */
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+.topbar {
+  height: var(--topbar-h); display: flex; align-items: center; gap: 10px;
+  padding: 0 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg2); flex-shrink: 0;
+  padding-top: env(safe-area-inset-top);
+}
+.topbar-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.hamburger {
+  display: none; width: 36px; height: 36px; border: none; background: transparent;
+  cursor: pointer; color: var(--text2); border-radius: 8px;
+  align-items: center; justify-content: center; flex-shrink: 0;
+  transition: background var(--transition);
+}
+.hamburger:hover { background: var(--bg3); }
+@media (max-width: 768px) { .hamburger { display: flex; } }
+.topbar h1 {
+  font-family: var(--font-display); font-size: 20px; font-weight: 400;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+}
+.topbar-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+/* Search */
+.search-wrap { position: relative; display: flex; align-items: center; }
+.search-input {
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); padding: 7px 12px 7px 34px;
+  border-radius: var(--radius); font-family: var(--font-body); font-size: 13px;
+  width: 200px; outline: none; transition: all var(--transition);
+}
+.search-input:focus { border-color: var(--accent); width: 260px; }
+.search-input::placeholder { color: var(--text3); }
+.search-icon { position: absolute; left: 10px; color: var(--text3); pointer-events: none; }
+@media (max-width: 480px) {
+  .search-input { width: 120px; }
+  .search-input:focus { width: 150px; }
+}
+
+/* Buttons */
+.btn {
+  display: flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-radius: var(--radius); cursor: pointer; font-family: var(--font-body);
+  font-size: 13px; font-weight: 500; border: none;
+  transition: all var(--transition); white-space: nowrap; flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+.btn-icon {
+  width: 34px; height: 34px; padding: 0; display: flex; align-items: center;
+  justify-content: center; border-radius: var(--radius); cursor: pointer;
+  background: transparent; border: 1px solid var(--border); color: var(--text2);
+  transition: all var(--transition); flex-shrink: 0;
+}
+.btn-icon:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+.btn-icon.active { background: var(--bg4); color: var(--accent2); border-color: var(--accent); }
+
+/* Theme toggle */
+.theme-toggle {
+  position: relative; width: 44px; height: 24px; border-radius: 12px;
+  background: var(--bg4); border: 1px solid var(--border); cursor: pointer;
+  transition: background .3s; flex-shrink: 0;
+}
+.theme-toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text3); transition: all .3s;
+}
+[data-theme="light"] .theme-toggle { background: var(--accent); border-color: var(--accent2); }
+[data-theme="light"] .theme-toggle::after { left: 22px; background: white; }
+
+/* ═══════ SORT BAR ═══════ */
+.sort-bar {
+  display: flex; align-items: center; gap: 6px; padding: 10px 20px;
+  border-bottom: 1px solid var(--border); background: var(--bg2);
+  flex-shrink: 0; overflow-x: auto; scrollbar-width: none;
+}
+.sort-bar::-webkit-scrollbar { display: none; }
+.sort-label { font-size: 11px; color: var(--text3); flex-shrink: 0; }
+.sort-chip {
+  padding: 4px 11px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border); color: var(--text2);
+  transition: all var(--transition); background: transparent; white-space: nowrap;
+  flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+}
+.sort-chip:hover { border-color: var(--border2); color: var(--text); }
+.sort-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sort-spacer { flex: 1; }
+.view-btns { display: flex; gap: 3px; flex-shrink: 0; }
+.view-btn {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; cursor: pointer; color: var(--text3); transition: all var(--transition);
+  background: transparent; border: none;
+}
+.view-btn:hover { background: var(--bg3); color: var(--text); }
+.view-btn.active { background: var(--bg4); color: var(--accent2); }
+
+/* ═══════ CONTENT AREA ═══════ */
+#content {
+  flex: 1; overflow-y: auto; padding: 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+/* Stats */
+.stats-row { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px; flex: 1; min-width: 100px;
+  transition: border-color var(--transition);
+}
+.stat-card:hover { border-color: var(--border2); }
+.stat-val {
+  font-family: var(--font-display); font-size: 26px; font-style: italic;
+  color: var(--accent2); line-height: 1;
+}
+.stat-lbl { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* Empty state */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 14px; color: var(--text3); text-align: center; padding: 20px;
+}
+.empty-icon {
+  width: 76px; height: 76px; border-radius: 20px;
+  background: var(--bg3); border: 2px dashed var(--border2);
+  display: flex; align-items: center; justify-content: center; font-size: 30px;
+}
+.empty-state h3 {
+  font-family: var(--font-display); font-size: 22px; color: var(--text2); font-weight: 400;
+}
+.empty-state p { font-size: 13.5px; max-width: 320px; line-height: 1.6; }
+.drop-zone {
+  border: 2px dashed var(--border2); border-radius: var(--radius2);
+  padding: 28px 40px; margin-top: 12px; cursor: pointer;
+  transition: all var(--transition); text-align: center;
+}
+.drop-zone:hover, .drop-zone.dragging {
+  border-color: var(--accent); background: rgba(16,185,129,.05);
+}
+
+/* ═══════ FILE GRID ═══════ */
+.file-grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+.file-grid.list { grid-template-columns: 1fr; gap: 8px; }
+
+@media (max-width: 480px) {
+  .file-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+}
+
+/* ═══════ FILE CARD ═══════ */
+.file-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius2); overflow: hidden; cursor: pointer;
+  transition: all var(--transition); position: relative;
+  animation: fadeUp .3s ease both;
+  -webkit-tap-highlight-color: transparent;
+}
+.file-card:hover {
+  border-color: var(--accent); transform: translateY(-2px);
+  box-shadow: var(--card-hover-shadow);
+}
+.file-card:active { transform: translateY(0); }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card-thumb {
+  height: 136px; display: flex; align-items: center; justify-content: center;
+  background: var(--bg3); position: relative; overflow: hidden;
+}
+.card-thumb-icon { font-size: 44px; opacity: .45; }
+.card-type-badge {
+  position: absolute; top: 8px; right: 8px; font-size: 9.5px; font-weight: 600;
+  padding: 2px 6px; border-radius: 4px; letter-spacing: .06em; text-transform: uppercase;
+}
+.badge-pdf  { background: rgba(248,113,114,.15); color: #f87171; border: 1px solid rgba(248,113,114,.25); }
+.badge-cbz  { background: rgba(167,139,250,.15); color: #a78bfa; border: 1px solid rgba(167,139,250,.25); }
+.badge-docx { background: rgba(96,165,250,.15);  color: #60a5fa; border: 1px solid rgba(96,165,250,.25); }
+.badge-pptx { background: rgba(52,211,153,.15);  color: #34d399; border: 1px solid rgba(52,211,153,.25); }
+
+.card-progress { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--bg4); }
+.card-progress-fill {
+  height: 100%; background: linear-gradient(90deg, var(--teal2), var(--accent));
+  transition: width .6s ease;
+}
+
+.card-info { padding: 11px 12px; }
+.card-name {
+  font-size: 12.5px; font-weight: 500; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;
+}
+.card-meta { font-size: 11px; color: var(--text3); display: flex; align-items: center; gap: 5px; }
+
+.card-actions {
+  position: absolute; top: 7px; left: 7px; display: flex; gap: 4px;
+  opacity: 0; transition: opacity var(--transition);
+}
+.file-card:hover .card-actions { opacity: 1; }
+@media (hover: none) { .card-actions { opacity: 1; } }  /* Always show on touch */
+
+.card-action-btn {
+  width: 26px; height: 26px; border-radius: 5px;
+  background: rgba(15,23,42,.85); display: flex; align-items: center;
+  justify-content: center; border: none; cursor: pointer; color: var(--text2);
+  backdrop-filter: blur(6px); transition: all var(--transition);
+}
+.card-action-btn:hover { background: var(--bg4); color: var(--text); }
+
+/* List card */
+.file-card.list-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 14px; border-radius: var(--radius);
+}
+.list-card .card-thumb { height: 42px; width: 42px; min-width: 42px; border-radius: 8px; flex-shrink: 0; }
+.list-card .card-info { flex: 1; padding: 0; min-width: 0; }
+.list-card .card-name { font-size: 13.5px; }
+.list-card .card-type-badge { position: static; }
+.list-card .card-actions { opacity: 1; position: static; }
+.list-card .card-progress { display: none; }
+
+/* ═══════ READER OVERLAY ═══════ */
+#reader {
+  position: fixed; inset: 0; background: var(--bg); z-index: 100;
+  display: none; flex-direction: column;
+}
+#reader.open { display: flex; }
+
+.reader-header {
+  height: 50px; display: flex; align-items: center; gap: 8px;
+  padding: 0 14px; padding-top: env(safe-area-inset-top);
+  border-bottom: 1px solid var(--border); background: var(--bg2);
+  flex-shrink: 0; z-index: 10; transition: opacity .35s ease, transform .35s ease;
+}
+.reader-header.focus-mode { opacity: 0; pointer-events: none; transform: translateY(-8px); }
+#reader-content:hover ~ .reader-header,
+.reader-header:hover { opacity: 1 !important; pointer-events: auto !important; transform: none !important; }
+
+.reader-title {
+  font-size: 13px; font-weight: 500; flex: 1; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; color: var(--text2);
+}
+.mode-selector {
+  display: flex; gap: 3px; background: var(--bg3);
+  border-radius: 8px; padding: 3px; border: 1px solid var(--border);
+  overflow-x: auto; scrollbar-width: none; max-width: 50vw;
+}
+.mode-selector::-webkit-scrollbar { display: none; }
+.mode-btn {
+  padding: 4px 9px; border-radius: 5px; font-size: 11px; font-weight: 500;
+  cursor: pointer; color: var(--text2); transition: all var(--transition);
+  border: none; background: transparent; white-space: nowrap; flex-shrink: 0;
+}
+.mode-btn.active { background: var(--accent); color: #fff; }
+.mode-btn:hover:not(.active) { background: var(--bg4); color: var(--text); }
+
+.reader-content { flex: 1; overflow: hidden; position: relative; }
+
+/* ═══════ PDF READER ═══════ */
+.pdf-reader {
+  height: 100%; overflow-y: auto; display: flex; flex-direction: column;
+  align-items: center; gap: 8px; padding: 16px; background: var(--bg);
+}
+.pdf-page-wrap { box-shadow: 0 4px 20px var(--shadow); }
+.pdf-page-wrap canvas { display: block; max-width: 100%; height: auto !important; }
+.pdf-loading {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  color: var(--text3); padding: 40px; height: 100%; justify-content: center;
+}
+
+.pdf-controls {
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px;
+  background: var(--bg2); border-top: 1px solid var(--border);
+  flex-shrink: 0; padding-bottom: max(7px, env(safe-area-inset-bottom));
+}
+.pdf-page-info { font-size: 12px; color: var(--text2); font-family: var(--font-mono); flex-shrink: 0; }
+.pdf-progress-bar { flex: 1; height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
+.pdf-progress-fill { height: 100%; background: var(--accent); transition: width .3s ease; }
+
+/* ═══════ COMICS READER ═══════ */
+.comics-reader {
+  height: 100%; overflow: hidden; display: flex; align-items: center;
+  justify-content: center; background: #0a0a0a; position: relative; user-select: none;
+}
+.comics-reader.rtl-mode { direction: rtl; }
+.comics-pages { display: flex; height: 100%; align-items: center; }
+.comics-page { height: 100%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0 1px; }
+.comics-page img { max-height: 100%; max-width: 100%; object-fit: contain; display: block; }
+
+.comics-nav {
+  position: absolute; top: 0; bottom: 0; width: 14%; cursor: pointer;
+  display: flex; align-items: center; padding: 16px;
+  background: transparent; transition: background .2s; z-index: 5;
+}
+.comics-nav:hover { background: rgba(0,0,0,.25); }
+.comics-nav.nav-left  { left: 0; justify-content: flex-start; }
+.comics-nav.nav-right { right: 0; justify-content: flex-end; }
+.comics-nav svg { opacity: 0; transition: opacity .2s; color: white; filter: drop-shadow(0 1px 3px black); }
+.comics-nav:hover svg { opacity: 1; }
+
+.comics-counter {
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+  font-family: var(--font-mono); font-size: 11px; color: rgba(255,255,255,.6);
+  background: rgba(0,0,0,.6); padding: 3px 11px; border-radius: 10px;
+  backdrop-filter: blur(8px);
+}
+
+/* ═══════ NOVEL / DOCX READER ═══════ */
+.novel-reader { height: 100%; overflow-y: auto; }
+.novel-content {
+  max-width: 680px; margin: 0 auto; padding: 40px 28px;
+  font-size: 17.5px; line-height: 1.85; color: var(--text);
+}
+
+/* Parchment theme */
+.novel-reader.parchment {
+  background: #faf6ee;
+  background-image: url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+.novel-reader.parchment .novel-content { color: #3d2b1f; font-family: 'Instrument Serif', serif; font-size: 19px; line-height: 2; }
+
+/* Dark novel theme */
+.novel-reader.novel-dark { background: #0d0d0d; }
+.novel-reader.novel-dark .novel-content { color: #cdd6f4; }
+
+/* Focus theme */
+.novel-reader.focus-read .novel-content { max-width: 600px; font-size: 18.5px; line-height: 2.1; }
+
+.novel-content h1, .novel-content h2, .novel-content h3 {
+  font-family: var(--font-display); margin: 1.8em 0 .6em; line-height: 1.3;
+}
+.novel-content p { margin-bottom: 1.1em; }
+.novel-content table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: 14px; }
+.novel-content td, .novel-content th { border: 1px solid var(--border); padding: 8px 12px; }
+.novel-content th { background: var(--bg3); font-weight: 600; }
+.novel-content ul, .novel-content ol { margin: 1em 0 1em 2em; }
+.novel-content li { margin-bottom: .4em; }
+.novel-content img { max-width: 100%; border-radius: 8px; margin: 1em 0; }
+.novel-content blockquote {
+  border-left: 3px solid var(--accent); padding-left: 1em; margin: 1.2em 0;
+  color: var(--text2); font-style: italic;
+}
+.novel-content code { background: var(--bg3); padding: 1px 5px; border-radius: 3px; font-family: var(--font-mono); font-size: .85em; }
+
+/* ═══════ PPTX READER ═══════ */
+.pptx-reader { height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+.pptx-slide-view {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 20px; overflow: hidden;
+}
+.pptx-slide {
+  background: white; border-radius: 4px;
+  box-shadow: 0 12px 48px rgba(0,0,0,.5);
+  aspect-ratio: 16/9; width: 100%;
+  max-width: min(100%, calc((100dvh - 160px) * 16 / 9));
+  overflow: hidden; position: relative;
+}
+.pptx-slide-inner {
+  padding: clamp(20px, 4%, 52px);
+  height: 100%; display: flex; flex-direction: column; gap: 12px;
+}
+.pptx-slide-title {
+  font-family: 'Instrument Serif', serif; font-style: italic;
+  font-size: clamp(16px, 3.2vw, 40px); color: #1a293d; line-height: 1.2; font-weight: 400;
+}
+.pptx-slide-body { font-size: clamp(10px, 1.6vw, 17px); color: #374151; line-height: 1.7; flex: 1; overflow: hidden; }
+.pptx-slide-accent {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, #0f766e, #10b981);
+}
+.pptx-slide-num {
+  position: absolute; bottom: 10px; right: 14px;
+  font-size: 10px; color: #9ca3af; font-family: var(--font-mono);
+}
+
+.pptx-thumbs {
+  height: 84px; min-height: 84px; display: flex; gap: 7px; padding: 7px 14px;
+  overflow-x: auto; background: var(--bg2); border-top: 1px solid var(--border);
+  scrollbar-width: thin;
+}
+.pptx-thumb {
+  height: 100%; aspect-ratio: 16/9; flex-shrink: 0; cursor: pointer;
+  background: white; border-radius: 3px; overflow: hidden;
+  border: 2px solid transparent; transition: border-color .2s, opacity .2s;
+  opacity: .6;
+}
+.pptx-thumb:hover { opacity: .9; }
+.pptx-thumb.active { border-color: var(--accent); opacity: 1; }
+.pptx-thumb-inner {
+  padding: 4px 5px; width: 100%; height: 100%;
+  display: flex; flex-direction: column; gap: 2px; overflow: hidden;
+}
+.pptx-thumb-title { font-size: 5.5px; font-weight: 700; color: #1a293d; line-height: 1.3; font-family: serif; }
+.pptx-thumb-body  { font-size: 4.5px; color: #4b5563; line-height: 1.3; }
+
+.pptx-nav {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 9px; background: var(--bg2); border-top: 1px solid var(--border);
+  flex-shrink: 0; padding-bottom: max(9px, env(safe-area-inset-bottom));
+}
+.pptx-counter { font-family: var(--font-mono); font-size: 12px; color: var(--text2); min-width: 80px; text-align: center; }
+
+/* ═══════ FOCUS HUD ═══════ */
+.focus-hud {
+  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  background: rgba(15,23,42,.92); backdrop-filter: blur(12px);
+  border: 1px solid var(--border); border-radius: 20px;
+  padding: 7px 18px; display: flex; align-items: center; gap: 10px;
+  font-size: 12px; color: var(--text2); z-index: 20;
+  opacity: 0; transition: opacity .3s; pointer-events: none;
+}
+.reader-content:hover .focus-hud { opacity: 1; }
+.hud-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+/* ═══════ MODAL ═══════ */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.modal {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius2);
+  padding: 26px; min-width: 320px; max-width: 460px; width: 90%;
+  animation: modalUp .2s ease;
+}
+@keyframes modalUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: none; } }
+.modal h3 { font-family: var(--font-display); font-size: 20px; margin-bottom: 14px; font-weight: 400; }
+.modal-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); padding: 9px 13px; border-radius: var(--radius);
+  font-family: var(--font-body); font-size: 14px; outline: none;
+  transition: border-color var(--transition); margin-bottom: 12px;
+}
+.modal-input:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ═══════ CONTEXT MENU ═══════ */
+.ctx-menu {
+  position: fixed; background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: var(--radius); padding: 4px; z-index: 500; min-width: 158px;
+  box-shadow: 0 8px 28px var(--shadow); animation: fadeIn .1s ease;
+}
+.ctx-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 11px;
+  font-size: 13px; cursor: pointer; border-radius: 6px; color: var(--text2);
+  transition: all .15s;
+}
+.ctx-item:hover { background: var(--bg3); color: var(--text); }
+.ctx-item.danger { color: var(--red); }
+.ctx-item.danger:hover { background: rgba(248,113,114,.1); }
+.ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+
+/* ═══════ TOAST ═══════ */
+.toast-container {
+  position: fixed; bottom: max(16px, env(safe-area-inset-bottom));
+  right: 16px; z-index: 300; display: flex; flex-direction: column; gap: 7px;
+}
+.toast {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 9px 14px;
+  font-size: 13px; display: flex; align-items: center; gap: 8px;
+  animation: toastIn .3s ease; box-shadow: 0 4px 16px var(--shadow);
+  transition: opacity .4s; max-width: 280px;
+}
+@keyframes toastIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform:none; } }
+.toast.success { border-left: 3px solid var(--accent); }
+.toast.error   { border-left: 3px solid var(--red); }
+.toast.info    { border-left: 3px solid var(--teal2); }
+
+/* ═══════ SPINNERS & MISC ═══════ */
+.spinner {
+  width: 24px; height: 24px; border: 3px solid var(--border2);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+.spinner.sm { width: 16px; height: 16px; border-width: 2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ═══════ FOLDER TREE ═══════ */
+.folder-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 16px;
+  cursor: pointer; color: var(--text2); font-size: 13px;
+  transition: background var(--transition), color var(--transition);
+}
+.folder-item:hover { background: var(--bg3); color: var(--text); }
+.folder-item.active { color: var(--accent2); }
+
+/* ═══════ OVERFLOW FIXES ═══════ */
+@media (max-width: 380px) {
+  .topbar-actions .btn-ghost { display: none; }
+  .mode-selector { max-width: 40vw; }
+}
+</style>
+</head>
+<body>
+<div id="mobile-overlay" onclick="closeMobileSidebar()"></div>
+
+<div id="app">
+  <!-- ═══ SIDEBAR ═══ -->
+  <div id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+      </div>
+      <span class="logo-text" id="logo-text">Omni<span>Shelf</span></span>
+    </div>
+
+    <div class="sidebar-scroll">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Library</div>
+        <div class="sidebar-item active" data-view="all" onclick="switchView('all')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span>All Documents</span>
+          <span class="sidebar-count" id="count-all">0</span>
+        </div>
+        <div class="sidebar-item" data-view="recent" onclick="switchView('recent')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>Recently Read</span>
+        </div>
+        <div class="sidebar-item" data-view="unread" onclick="switchView('unread')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>Unread</span>
+          <span class="sidebar-count" id="count-unread">0</span>
+        </div>
+        <div class="sidebar-item" data-view="inprogress" onclick="switchView('inprogress')">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span>In Progress</span>
+          <span class="sidebar-count" id="count-progress">0</span>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">By Type</div>
+        <div class="sidebar-item" data-view="pdf" onclick="switchView('pdf')">
+          <span style="font-size:13px;min-width:14px">📄</span><span>PDF Files</span>
+          <span class="sidebar-count" id="count-pdf">0</span>
+        </div>
+        <div class="sidebar-item" data-view="cbz" onclick="switchView('cbz')">
+          <span style="font-size:13px;min-width:14px">🗜️</span><span>Comics (CBZ)</span>
+          <span class="sidebar-count" id="count-cbz">0</span>
+        </div>
+        <div class="sidebar-item" data-view="docx" onclick="switchView('docx')">
+          <span style="font-size:13px;min-width:14px">📝</span><span>Documents</span>
+          <span class="sidebar-count" id="count-docx">0</span>
+        </div>
+        <div class="sidebar-item" data-view="pptx" onclick="switchView('pptx')">
+          <span style="font-size:13px;min-width:14px">📊</span><span>Presentations</span>
+          <span class="sidebar-count" id="count-pptx">0</span>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Folders</div>
+        <div id="folder-tree"></div>
+        <div class="sidebar-item" onclick="showNewFolderModal()" style="color:var(--text3);font-size:12px">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>New Folder</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <button class="collapse-btn" onclick="toggleSidebar()" id="collapse-btn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" id="collapse-icon"><polyline points="15 18 9 12 15 6"/></svg>
+        <span id="collapse-text">Collapse</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ MAIN ═══ -->
+  <div id="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" onclick="openMobileSidebar()" aria-label="Menu">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <h1 id="view-title">All Documents</h1>
+      </div>
+      <div class="topbar-actions">
+        <div class="search-wrap">
+          <svg class="search-icon" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="search-input" placeholder="Search…" id="search-input" oninput="handleSearch(this.value)"/>
+        </div>
+        <!-- Theme toggle -->
+        <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" role="switch" aria-label="Dark/Light mode"></div>
+        <button class="btn btn-ghost" onclick="document.getElementById('file-input').click()" title="Import">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span class="hide-sm">Import</span>
+        </button>
+        <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span class="hide-sm">Add</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="sort-bar">
+      <span class="sort-label">Sort:</span>
+      <button class="sort-chip active" data-sort="dateAdded" onclick="setSort('dateAdded')">Date Added</button>
+      <button class="sort-chip" data-sort="lastRead" onclick="setSort('lastRead')">Last Read</button>
+      <button class="sort-chip" data-sort="name" onclick="setSort('name')">Name</button>
+      <button class="sort-chip" data-sort="type" onclick="setSort('type')">Type</button>
+      <button class="sort-chip" data-sort="size" onclick="setSort('size')">Size</button>
+      <div class="sort-spacer"></div>
+      <div class="view-btns">
+        <button class="view-btn active" id="vbtn-grid" onclick="setViewMode('grid')" title="Grid">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </button>
+        <button class="view-btn" id="vbtn-list" onclick="setViewMode('list')" title="List">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="content">
+      <div id="stats-row" class="stats-row" style="display:none"></div>
+      <div id="file-grid" class="file-grid"></div>
+      <div id="empty-state" class="empty-state" style="display:none">
+        <div class="empty-icon">📚</div>
+        <h3>Your shelf is empty</h3>
+        <p>Import PDFs, comics (CBZ), Word documents, or PowerPoint files to start your library.</p>
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 8px;display:block;opacity:.35"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <div style="font-size:13.5px;color:var(--text2)">Click or drag & drop files here</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">PDF · CBZ · DOCX · PPTX</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ READER ═══ -->
+<div id="reader">
+  <div class="reader-header" id="reader-header">
+    <button class="btn-icon" onclick="closeReader()" title="Close (Esc)">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <span class="reader-title" id="reader-title"></span>
+    <div class="mode-selector" id="mode-selector"></div>
+    <button class="btn-icon" onclick="toggleFocusMode()" title="Focus Mode" id="focus-btn">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    </button>
+  </div>
+  <div class="reader-content" id="reader-content">
+    <div class="focus-hud" id="focus-hud">
+      <div class="hud-dot"></div>
+      <span id="hud-progress">0%</span>
+      <span style="color:var(--border2)">|</span>
+      <span id="hud-position">Page 1</span>
+    </div>
+  </div>
+  <div id="reader-controls"></div>
+</div>
+
+<!-- ═══ MODAL ═══ -->
+<div id="modal-overlay" class="modal-overlay" style="display:none" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 id="modal-title">New Folder</h3>
+    <input class="modal-input" id="modal-input" placeholder="Folder name…"/>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-confirm">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONTEXT MENU ═══ -->
+<div class="ctx-menu" id="ctx-menu" style="display:none"></div>
+
+<!-- ═══ TOASTS ═══ -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- Hidden file input -->
+<input type="file" id="file-input" multiple accept=".pdf,.cbz,.docx,.pptx" style="display:none" onchange="handleFileInput(this)"/>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════
+// DATABASE
+// ═══════════════════════════════════════════════════
+const db = new Dexie('OmniShelfV2');
+db.version(1).stores({
+  files:   '++id, name, type, size, dateAdded, lastRead, readingProgress, folderId',
+  folders: '++id, name, parentId, createdAt',
+});
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+const state = {
+  files: [], folders: [],
+  currentView: 'all', sortBy: 'dateAdded',
+  searchQuery: '', viewMode: 'grid',
+  sidebarCollapsed: false,
+};
+
+// Reader state — isolated object, fully reset on close
+let RS = createFreshRS();
+function createFreshRS() {
+  return {
+    fileId: null, file: null, mode: null, availableModes: [],
+    currentPage: 0, totalPages: 0,
+    pdfDoc: null,
+    comicsImages: [], // { url, revoker } pairs — explicit lifecycle
+    docxHtml: '',
+    pptxSlides: [],
+    focusMode: false,
+    activeListeners: [], // {target, type, fn} for cleanup
+    renderToken: 0,      // abort stale renders
+  };
+}
+
+// ═══════════════════════════════════════════════════
+// THEME ENGINE
+// ═══════════════════════════════════════════════════
+function initTheme() {
+  const saved = localStorage.getItem('omni-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('omni-theme', next);
+}
+
+// ═══════════════════════════════════════════════════
+// MOBILE SIDEBAR
+// ═══════════════════════════════════════════════════
+function openMobileSidebar() {
+  document.getElementById('sidebar').classList.add('mobile-open');
+  document.getElementById('mobile-overlay').style.display = 'block';
+}
+function closeMobileSidebar() {
+  document.getElementById('sidebar').classList.remove('mobile-open');
+  document.getElementById('mobile-overlay').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+async function init() {
+  initTheme();
+  await loadData();
+  setupDragDrop();
+  setupTouchSwipe();
+  renderAll();
+}
+
+async function loadData() {
+  [state.files, state.folders] = await Promise.all([
+    db.files.toArray(), db.folders.toArray()
+  ]);
+}
+
+function renderAll() {
+  renderSidebar();
+  renderContent();
+  updateCounts();
+}
+
+// ═══════════════════════════════════════════════════
+// FILE IMPORT
+// ═══════════════════════════════════════════════════
+async function handleFileInput(input) {
+  const files = Array.from(input.files);
+  input.value = '';
+  for (const f of files) await importFile(f);
+  await loadData(); renderAll();
+}
+
+async function importFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['pdf','cbz','docx','pptx'].includes(ext)) {
+    showToast(`Unsupported: ${escHtml(file.name)}`, 'error'); return;
+  }
+  try {
+    const buffer = await file.arrayBuffer();
+    await db.files.add({
+      name: file.name, type: ext, size: file.size,
+      dateAdded: Date.now(), lastRead: null,
+      readingProgress: 0, currentPage: 0,
+      folderId: null, tags: [],
+      blob: buffer,
+    });
+    showToast(`Added: ${file.name.slice(0,30)}`, 'success');
+  } catch(e) {
+    console.error('[import]', e);
+    showToast(`Failed to import: ${file.name.slice(0,20)}`, 'error');
+  }
+}
+
+async function deleteFile(id) {
+  if (!confirm('Remove this file from your shelf?')) return;
+  await db.files.delete(id);
+  await loadData(); renderAll();
+  showToast('File removed', 'info');
+}
+
+// ═══════════════════════════════════════════════════
+// PROGRESS SAVE (debounced)
+// ═══════════════════════════════════════════════════
+let progressTimer = null;
+async function updateProgress(id, page, total) {
+  const progress = total > 0 ? Math.round((page / total) * 100) : 0;
+  clearTimeout(progressTimer);
+  progressTimer = setTimeout(async () => {
+    await db.files.update(id, { readingProgress: progress, currentPage: page, lastRead: Date.now() });
+    // Patch in memory without reload
+    const f = state.files.find(f => f.id === id);
+    if (f) { f.readingProgress = progress; f.currentPage = page; f.lastRead = Date.now(); }
+    const fill = document.querySelector(`[data-card-id="${id}"] .card-progress-fill`);
+    if (fill) fill.style.width = progress + '%';
+  }, 300);
+  // Update HUD immediately
+  document.getElementById('hud-progress').textContent = progress + '%';
+  document.getElementById('hud-position').textContent =
+    total > 1 ? `Page ${page + 1} / ${total}` : `${progress}% read`;
+}
+
+// ═══════════════════════════════════════════════════
+// SORTING & FILTERING
+// ═══════════════════════════════════════════════════
+function getFilteredFiles() {
+  let files = [...state.files];
+  if (['pdf','cbz','docx','pptx'].includes(state.currentView)) {
+    files = files.filter(f => f.type === state.currentView);
+  } else if (state.currentView === 'recent') {
+    return files.filter(f => f.lastRead).sort((a,b) => (b.lastRead||0)-(a.lastRead||0)).slice(0,30);
+  } else if (state.currentView === 'unread') {
+    files = files.filter(f => !f.lastRead);
+  } else if (state.currentView === 'inprogress') {
+    files = files.filter(f => f.readingProgress > 0 && f.readingProgress < 100);
+  } else if (state.currentView.startsWith('folder_')) {
+    const fid = parseInt(state.currentView.split('_')[1]);
+    files = files.filter(f => f.folderId === fid);
+  }
+  if (state.searchQuery) {
+    const q = state.searchQuery.toLowerCase();
+    files = files.filter(f => f.name.toLowerCase().includes(q));
+  }
+  return files.sort((a, b) => {
+    if (state.sortBy === 'name') return a.name.localeCompare(b.name);
+    if (state.sortBy === 'type') return a.type.localeCompare(b.type);
+    if (state.sortBy === 'size') return b.size - a.size;
+    if (state.sortBy === 'lastRead') return (b.lastRead||0)-(a.lastRead||0);
+    return b.dateAdded - a.dateAdded;
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// RENDER CONTENT
+// ═══════════════════════════════════════════════════
+function renderContent() {
+  const files = getFilteredFiles();
+  const grid   = document.getElementById('file-grid');
+  const empty  = document.getElementById('empty-state');
+  const stats  = document.getElementById('stats-row');
+
+  stats.style.display = (state.currentView === 'all') ? 'flex' : 'none';
+  if (state.currentView === 'all') stats.innerHTML = buildStats();
+
+  if (!files.length) {
+    grid.innerHTML = ''; grid.style.display = 'none'; empty.style.display = 'flex'; return;
+  }
+  grid.style.display = ''; empty.style.display = 'none';
+  grid.className = 'file-grid' + (state.viewMode === 'list' ? ' list' : '');
+  grid.innerHTML = files.map((f, i) => buildCard(f, i)).join('');
+}
+
+function buildStats() {
+  const total    = state.files.length;
+  const inprog   = state.files.filter(f => f.readingProgress > 0 && f.readingProgress < 100).length;
+  const done     = state.files.filter(f => f.readingProgress >= 100).length;
+  const totalSz  = state.files.reduce((s, f) => s + (f.size || 0), 0);
+  return [
+    [total,           'Total Files'],
+    [inprog,          'In Progress'],
+    [done,            'Finished'],
+    [fmtSize(totalSz),'Library Size'],
+  ].map(([v,l]) => `<div class="stat-card"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
+}
+
+function buildCard(f, i) {
+  const emoji = {pdf:'📄',cbz:'🗜️',docx:'📝',pptx:'📊'}[f.type] || '📄';
+  const prog  = f.readingProgress || 0;
+  const delay = Math.min(i * 40, 400);
+
+  if (state.viewMode === 'list') {
+    return `<div class="file-card list-card" data-card-id="${f.id}" style="animation-delay:${delay}ms"
+      ondblclick="openReader(${f.id})" oncontextmenu="showCtxMenu(event,${f.id})" onclick="handleCardClick(event,${f.id})">
+      <div class="card-thumb"><span class="card-thumb-icon">${emoji}</span></div>
+      <div class="card-info">
+        <div class="card-name">${escHtml(f.name)}</div>
+        <div class="card-meta">
+          <span class="card-type-badge badge-${f.type}">${f.type.toUpperCase()}</span>
+          <span>${fmtSize(f.size)}</span>
+          <span>·</span>
+          <span>${f.lastRead ? timeAgo(f.lastRead) : 'Unread'}</span>
+          ${prog > 0 ? `<span>·</span><span style="color:var(--accent2)">${prog}%</span>` : ''}
+        </div>
+      </div>
+      <div class="card-actions" style="gap:6px;position:static;opacity:1">
+        <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="openReader(${f.id});event.stopPropagation()">Open</button>
+        <button class="card-action-btn" onclick="deleteFile(${f.id});event.stopPropagation()" title="Delete" style="color:var(--red)">
+          <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div>
+    </div>`;
+  }
+
+  return `<div class="file-card" data-card-id="${f.id}" style="animation-delay:${delay}ms"
+    ondblclick="openReader(${f.id})" oncontextmenu="showCtxMenu(event,${f.id})" onclick="handleCardClick(event,${f.id})">
+    <div class="card-thumb">
+      <span class="card-thumb-icon">${emoji}</span>
+      <span class="card-type-badge badge-${f.type}">${f.type.toUpperCase()}</span>
+      <div class="card-progress"><div class="card-progress-fill" style="width:${prog}%"></div></div>
+    </div>
+    <div class="card-actions">
+      <button class="card-action-btn" onclick="openReader(${f.id});event.stopPropagation()" title="Open">
+        <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <button class="card-action-btn" onclick="deleteFile(${f.id});event.stopPropagation()" title="Delete" style="color:var(--red)">
+        <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>
+    </div>
+    <div class="card-info">
+      <div class="card-name">${escHtml(f.name)}</div>
+      <div class="card-meta">${fmtSize(f.size)} · ${f.lastRead ? timeAgo(f.lastRead) : 'Unread'}</div>
+    </div>
+  </div>`;
+}
+
+// Touch-friendly: tap once to open on mobile, double-click on desktop
+let lastTap = { id: null, time: 0 };
+function handleCardClick(e, id) {
+  const now = Date.now();
+  if (window.matchMedia('(hover: none)').matches) {
+    if (lastTap.id === id && now - lastTap.time < 350) openReader(id);
+    lastTap = { id, time: now };
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// SIDEBAR RENDER
+// ═══════════════════════════════════════════════════
+function renderSidebar() {
+  document.getElementById('folder-tree').innerHTML = state.folders.map(f =>
+    `<div class="folder-item ${state.currentView==='folder_'+f.id?'active':''}"
+         onclick="switchView('folder_${f.id}')">
+       <span style="font-size:13px">📁</span>
+       <span>${escHtml(f.name)}</span>
+     </div>`
+  ).join('');
+}
+
+function updateCounts() {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('count-all',      state.files.length);
+  set('count-unread',   state.files.filter(f => !f.lastRead).length);
+  set('count-progress', state.files.filter(f => f.readingProgress > 0 && f.readingProgress < 100).length);
+  set('count-pdf',      state.files.filter(f => f.type==='pdf').length);
+  set('count-cbz',      state.files.filter(f => f.type==='cbz').length);
+  set('count-docx',     state.files.filter(f => f.type==='docx').length);
+  set('count-pptx',     state.files.filter(f => f.type==='pptx').length);
+}
+
+// ═══════════════════════════════════════════════════
+// VIEW & SORT CONTROLS
+// ═══════════════════════════════════════════════════
+const VIEW_TITLES = {
+  all:'All Documents', recent:'Recently Read', unread:'Unread',
+  inprogress:'In Progress', pdf:'PDF Files', cbz:'Comics (CBZ)',
+  docx:'Documents', pptx:'Presentations',
+};
+function switchView(view) {
+  state.currentView = view;
+  document.getElementById('view-title').textContent = VIEW_TITLES[view] || 'Folder';
+  document.querySelectorAll('.sidebar-item[data-view]').forEach(el =>
+    el.classList.toggle('active', el.dataset.view === view));
+  closeMobileSidebar();
+  renderContent();
+}
+function setSort(s) {
+  state.sortBy = s;
+  document.querySelectorAll('.sort-chip').forEach(c => c.classList.toggle('active', c.dataset.sort === s));
+  renderContent();
+}
+function setViewMode(m) {
+  state.viewMode = m;
+  document.getElementById('vbtn-grid').classList.toggle('active', m==='grid');
+  document.getElementById('vbtn-list').classList.toggle('active', m==='list');
+  renderContent();
+}
+function handleSearch(q) { state.searchQuery = q; renderContent(); }
+
+function toggleSidebar() {
+  state.sidebarCollapsed = !state.sidebarCollapsed;
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed', state.sidebarCollapsed);
+  const hide = state.sidebarCollapsed;
+  ['logo-text','collapse-text'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = hide ? 'none' : '';
+  });
+  document.getElementById('collapse-icon').style.transform = hide ? 'rotate(180deg)' : '';
+}
+
+// ═══════════════════════════════════════════════════
+// FOLDER MODAL
+// ═══════════════════════════════════════════════════
+function showNewFolderModal() {
+  document.getElementById('modal-title').textContent = 'New Folder';
+  document.getElementById('modal-input').value = '';
+  document.getElementById('modal-overlay').style.display = 'flex';
+  requestAnimationFrame(() => document.getElementById('modal-input').focus());
+  document.getElementById('modal-confirm').onclick = async () => {
+    const name = document.getElementById('modal-input').value.trim();
+    if (!name) return;
+    await db.folders.add({ name, parentId: null, createdAt: Date.now() });
+    await loadData(); renderSidebar(); closeModal();
+    showToast('Folder created', 'success');
+  };
+}
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════
+// CONTEXT MENU (right-click / long-press)
+// ═══════════════════════════════════════════════════
+function showCtxMenu(e, fileId) {
+  e.preventDefault();
+  const m = document.getElementById('ctx-menu');
+  m.innerHTML = `
+    <div class="ctx-item" onclick="openReader(${fileId});hideCtxMenu()">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Open
+    </div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item danger" onclick="deleteFile(${fileId});hideCtxMenu()">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14H5V6m3-2V2h8v2"/></svg> Delete
+    </div>`;
+  m.style.display = 'block';
+  m.style.left = Math.min(e.clientX, innerWidth  - 170) + 'px';
+  m.style.top  = Math.min(e.clientY, innerHeight - 100) + 'px';
+}
+function hideCtxMenu() { document.getElementById('ctx-menu').style.display = 'none'; }
+document.addEventListener('click', hideCtxMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { hideCtxMenu(); if (!RS.file) return; closeReader(); } });
+
+// ═══════════════════════════════════════════════════
+// DRAG & DROP
+// ═══════════════════════════════════════════════════
+function setupDragDrop() {
+  const area = document.getElementById('content');
+  area.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-zone')?.classList.add('dragging'); });
+  area.addEventListener('dragleave', () => document.getElementById('drop-zone')?.classList.remove('dragging'));
+  area.addEventListener('drop', async e => {
+    e.preventDefault();
+    document.getElementById('drop-zone')?.classList.remove('dragging');
+    for (const f of Array.from(e.dataTransfer.files)) await importFile(f);
+    await loadData(); renderAll();
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// TOUCH SWIPE (comics navigation)
+// ═══════════════════════════════════════════════════
+function setupTouchSwipe() {
+  let startX = 0, startY = 0;
+  document.getElementById('reader-content').addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  document.getElementById('reader-content').addEventListener('touchend', e => {
+    if (!RS.file) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (Math.abs(dx) < Math.abs(dy) + 20) return; // Mostly vertical = scroll
+    if (Math.abs(dx) < 50) return;
+    if (RS.mode && RS.mode.startsWith('comics-')) comicsNav(dx < 0 ? 1 : -1);
+    else if (RS.mode && RS.mode.startsWith('pptx-')) pptxNav(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
+
+// ═══════════════════════════════════════════════════
+// READER — OPEN
+// ═══════════════════════════════════════════════════
+async function openReader(id) {
+  const file = state.files.find(f => f.id === id);
+  if (!file) { showToast('File not found', 'error'); return; }
+
+  // Full cleanup before opening new file — prevents leaks
+  await cleanupReader();
+
+  RS.fileId = id;
+  RS.file   = file;
+  RS.currentPage = file.currentPage || 0;
+
+  document.getElementById('reader-title').textContent = file.name;
+  document.getElementById('reader').classList.add('open');
+  document.getElementById('reader-header').classList.remove('focus-mode');
+  document.getElementById('focus-btn').classList.remove('active');
+
+  await db.files.update(id, { lastRead: Date.now() });
+
+  const modes = getModesForType(file.type);
+  RS.availableModes = modes;
+  RS.mode = modes[0].id;
+
+  renderModeSelector();
+  await loadAndRender();
+}
+
+function getModesForType(type) {
+  const M = {
+    pdf:  [
+      { id:'pdf-scroll',  label:'Scroll'    },
+      { id:'pdf-page',    label:'Page'      },
+      { id:'pdf-spread',  label:'Spread'    },
+    ],
+    cbz:  [
+      { id:'comics-ltr',    label:'LTR'        },
+      { id:'comics-rtl',    label:'RTL ↩'      },
+      { id:'comics-scroll', label:'Scroll'      },
+      { id:'comics-dual',   label:'Dual'        },
+    ],
+    docx: [
+      { id:'docx-doc',      label:'Document'    },
+      { id:'docx-novel',    label:'Novel'       },
+      { id:'docx-parchment',label:'Parchment'   },
+      { id:'docx-focus',    label:'Focus'       },
+    ],
+    pptx: [
+      { id:'pptx-slide',    label:'Slideshow'   },
+      { id:'pptx-grid',     label:'Overview'    },
+      { id:'pptx-presenter',label:'Presenter'   },
+    ],
+  };
+  return M[type] || M.docx;
+}
+
+function renderModeSelector() {
+  document.getElementById('mode-selector').innerHTML = RS.availableModes.map(m =>
+    `<button class="mode-btn ${m.id===RS.mode?'active':''}" onclick="switchMode('${m.id}')">${m.label}</button>`
+  ).join('');
+}
+
+async function switchMode(modeId) {
+  // Revoke CBZ urls only when fully leaving CBZ reader for another type
+  // Keep pdfDoc alive across PDF mode changes — avoids re-parse cost
+  RS.mode = modeId;
+  renderModeSelector();
+  renderCurrentMode();
+}
+
+// ═══════════════════════════════════════════════════
+// READER — LOAD FILE DATA
+// ═══════════════════════════════════════════════════
+async function loadAndRender() {
+  const container = document.getElementById('reader-content');
+  container.innerHTML = `<div class="pdf-loading"><div class="spinner"></div><p style="margin-top:8px;font-size:13px">Loading…</p></div>
+    <div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>`;
+
+  const token = ++RS.renderToken;
+  const f = RS.file;
+
+  try {
+    if (!f.blob) throw new Error('No file data stored');
+
+    if (f.type === 'pdf')  await parsePDF(f.blob);
+    if (f.type === 'cbz')  await parseCBZ(f.blob);
+    if (f.type === 'docx') await parseDOCX(f.blob);
+    if (f.type === 'pptx') await parsePPTX(f.blob);
+
+    if (token !== RS.renderToken) return; // Superseded
+    renderCurrentMode();
+  } catch(e) {
+    console.error('[reader]', e);
+    container.innerHTML = `<div class="pdf-loading"><p style="color:var(--red)">❌ ${escHtml(e.message)}</p></div>`;
+  }
+}
+
+// ── PDF ──
+async function parsePDF(blob) {
+  if (!window.pdfjsLib) {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  RS.pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(blob) }).promise;
+  RS.totalPages = RS.pdfDoc.numPages;
+}
+
+// ── CBZ ── Full URL lifecycle management
+async function parseCBZ(blob) {
+  // Revoke any prior URLs
+  RS.comicsImages.forEach(o => URL.revokeObjectURL(o.url));
+  RS.comicsImages = [];
+
+  const zip = await JSZip.loadAsync(blob);
+  const entries = [];
+  zip.forEach((path, entry) => {
+    if (!entry.dir && /\.(jpe?g|png|gif|webp)$/i.test(path)) entries.push({ path, entry });
+  });
+  entries.sort((a,b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
+
+  for (const { entry } of entries) {
+    const b = await entry.async('blob');
+    const url = URL.createObjectURL(b);
+    RS.comicsImages.push({ url });
+  }
+  RS.totalPages = RS.comicsImages.length;
+}
+
+// ── DOCX ──
+async function parseDOCX(blob) {
+  if (!window.mammoth) {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+  }
+  const result = await mammoth.convertToHtml({ arrayBuffer: blob });
+  RS.docxHtml = result.value || '<p><em>Empty document.</em></p>';
+  RS.totalPages = 1;
+}
+
+// ── PPTX ──
+async function parsePPTX(blob) {
+  const zip = await JSZip.loadAsync(blob);
+  const paths = [];
+  zip.forEach(p => { if (/^ppt\/slides\/slide\d+\.xml$/i.test(p)) paths.push(p); });
+  paths.sort((a,b) => (+a.match(/\d+/)?.[0]||0) - (+b.match(/\d+/)?.[0]||0));
+  RS.pptxSlides = [];
+  for (const p of paths) {
+    const xml = await zip.file(p).async('string');
+    RS.pptxSlides.push(parseSlideXML(xml));
+  }
+  if (!RS.pptxSlides.length) RS.pptxSlides = [{ title:'No slides found', body:'' }];
+  RS.totalPages = RS.pptxSlides.length;
+}
+
+function parseSlideXML(xml) {
+  const tParts = [];
+  const tRe = /<a:t>([^<]*)<\/a:t>/g;
+  let m;
+  while ((m = tRe.exec(xml)) !== null) {
+    const t = m[1].trim();
+    if (t) tParts.push(t);
+  }
+  // First text block is usually the title
+  const title = tParts.shift() || 'Slide';
+  return { title: decodeXMLEntities(title), body: decodeXMLEntities(tParts.join('\n')) };
+}
+
+function decodeXMLEntities(s) {
+  if (!s) return '';
+  return s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+}
+
+// ═══════════════════════════════════════════════════
+// READER — RENDER MODES
+// ═══════════════════════════════════════════════════
+function renderCurrentMode() {
+  // Remove old listeners
+  RS.activeListeners.forEach(({ target, type, fn }) => target.removeEventListener(type, fn));
+  RS.activeListeners = [];
+
+  const container = document.getElementById('reader-content');
+  const controls  = document.getElementById('reader-controls');
+
+  // Preserve hud
+  const hud = document.getElementById('focus-hud') || (() => {
+    const h = document.createElement('div'); h.className='focus-hud'; h.id='focus-hud';
+    h.innerHTML='<div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span>';
+    return h;
+  })();
+
+  const mode = RS.mode;
+  if      (mode === 'pdf-scroll')  renderPDFScroll(container, controls);
+  else if (mode === 'pdf-page')    renderPDFPage_(container, controls);
+  else if (mode === 'pdf-spread')  renderPDFSpread_(container, controls);
+  else if (mode.startsWith('comics-')) renderComics(container, controls);
+  else if (mode.startsWith('docx-'))   renderDocx(container, controls);
+  else if (mode.startsWith('pptx-'))   renderPPTX(container, controls);
+
+  if (!document.getElementById('focus-hud')) container.appendChild(hud);
+  updateHUD();
+}
+
+// ── PDF Scroll ──
+function renderPDFScroll(container, controls) {
+  if (!RS.pdfDoc) return;
+  const doc = RS.pdfDoc;
+  container.innerHTML = '<div class="pdf-reader" id="pdf-scroll-c"></div><div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>';
+  controls.innerHTML  = buildPDFControls(false);
+  const sc = document.getElementById('pdf-scroll-c');
+
+  const renderPage = async (n) => {
+    const page = await doc.getPage(n);
+    const scale = Math.min(2, (sc.clientWidth - 24) / page.getViewport({ scale:1 }).width);
+    const vp = page.getViewport({ scale });
+    const wrap = Object.assign(document.createElement('div'), { className:'pdf-page-wrap' });
+    const canvas = Object.assign(document.createElement('canvas'), { width:vp.width, height:vp.height });
+    wrap.appendChild(canvas); sc.appendChild(wrap);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  };
+
+  // Render all pages in sequence without blocking UI
+  (async () => { for (let i = 1; i <= doc.numPages; i++) await renderPage(i); })();
+
+  const onScroll = () => {
+    const { scrollTop, scrollHeight, clientHeight } = sc;
+    const p = scrollHeight > clientHeight ? scrollTop / (scrollHeight - clientHeight) : 1;
+    const pg = Math.round(p * doc.numPages);
+    RS.currentPage = pg;
+    updateProgress(RS.fileId, pg, doc.numPages);
+    const info = document.getElementById('pdf-page-info');
+    const fill = document.getElementById('pdf-progress-fill');
+    if (info) info.textContent = `${pg} / ${doc.numPages}`;
+    if (fill) fill.style.width = (p * 100) + '%';
+  };
+  sc.addEventListener('scroll', onScroll, { passive:true });
+  RS.activeListeners.push({ target: sc, type: 'scroll', fn: onScroll });
+}
+
+// ── PDF Single Page ──
+async function renderPDFPage_(container, controls) {
+  if (!RS.pdfDoc) return;
+  container.innerHTML = '<div class="pdf-reader" id="pdf-sp" style="justify-content:center"></div><div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>';
+  controls.innerHTML  = buildPDFControls(true);
+  const wrap = Object.assign(document.createElement('div'), { className:'pdf-page-wrap' });
+  const canvas = Object.assign(document.createElement('canvas'), { id:'pdf-canvas' });
+  wrap.appendChild(canvas);
+  document.getElementById('pdf-sp').appendChild(wrap);
+  await renderPDFCanvas(RS.pdfDoc, RS.currentPage || 1, canvas, container);
+  attachPDFNav(RS.pdfDoc, canvas, container);
+}
+
+// ── PDF Spread ──
+async function renderPDFSpread_(container, controls) {
+  if (!RS.pdfDoc) return;
+  container.innerHTML = '<div class="pdf-reader" id="pdf-spread-c" style="flex-direction:row;justify-content:center;gap:4px"></div><div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>';
+  controls.innerHTML  = buildPDFControls(true);
+  const sc = document.getElementById('pdf-spread-c');
+  const makeWrap = (id) => { const w=document.createElement('div'); w.className='pdf-page-wrap'; const c=document.createElement('canvas'); c.id=id; w.appendChild(c); sc.appendChild(w); return c; };
+  const c1 = makeWrap('pdf-canvas'); const c2 = makeWrap('pdf-canvas2');
+  const cur = RS.currentPage || 1;
+  await renderPDFCanvas(RS.pdfDoc, cur, c1, container, .47);
+  if (cur + 1 <= RS.pdfDoc.numPages) await renderPDFCanvas(RS.pdfDoc, cur+1, c2, container, .47);
+  attachPDFNav(RS.pdfDoc, c1, container, true, c2);
+}
+
+async function renderPDFCanvas(doc, pageNum, canvas, container, scaleFactor=1) {
+  pageNum = Math.max(1, Math.min(doc.numPages, pageNum));
+  RS.currentPage = pageNum;
+  const page = await doc.getPage(pageNum);
+  const maxW = (container.clientWidth * scaleFactor) - 32;
+  const scale = Math.min(2.5, maxW / page.getViewport({ scale:1 }).width);
+  const vp = page.getViewport({ scale });
+  canvas.width = vp.width; canvas.height = vp.height;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  updateProgress(RS.fileId, pageNum, doc.numPages);
+  const info = document.getElementById('pdf-page-info');
+  const fill = document.getElementById('pdf-progress-fill');
+  if (info) info.textContent = `${pageNum} / ${doc.numPages}`;
+  if (fill) fill.style.width = Math.round((pageNum/doc.numPages)*100) + '%';
+}
+
+function buildPDFControls(showNav) {
+  return `<div class="pdf-controls">
+    ${showNav ? `<button class="btn-icon" id="pdf-prev"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>` : ''}
+    <span class="pdf-page-info" id="pdf-page-info">1 / ${RS.totalPages}</span>
+    <div class="pdf-progress-bar"><div class="pdf-progress-fill" id="pdf-progress-fill"></div></div>
+    ${showNav ? `<button class="btn-icon" id="pdf-next"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>` : ''}
+  </div>`;
+}
+
+function attachPDFNav(doc, canvas, container, dual=false, canvas2=null) {
+  const step = dual ? 2 : 1;
+  const go = async (dir) => {
+    await renderPDFCanvas(doc, RS.currentPage + dir * step, canvas, container, dual?.47:1);
+    if (dual && canvas2 && RS.currentPage+1 <= doc.numPages)
+      await renderPDFCanvas(doc, RS.currentPage+1, canvas2, container, .47);
+  };
+  const prev = document.getElementById('pdf-prev');
+  const next = document.getElementById('pdf-next');
+  if (prev) prev.onclick = () => go(-1);
+  if (next) next.onclick = () => go(1);
+
+  const kh = (e) => {
+    if (!document.getElementById('reader').classList.contains('open')) return;
+    if (e.key==='ArrowRight'||e.key==='ArrowDown') go(1);
+    if (e.key==='ArrowLeft' ||e.key==='ArrowUp')   go(-1);
+  };
+  document.addEventListener('keydown', kh);
+  RS.activeListeners.push({ target:document, type:'keydown', fn:kh });
+}
+
+// ── Comics ──
+function renderComics(container, controls) {
+  controls.innerHTML = '';
+  const imgs = RS.comicsImages;
+  if (!imgs.length) { container.innerHTML='<div class="pdf-loading"><p>No images in archive</p></div>'; return; }
+
+  const mode   = RS.mode;
+  const isRTL  = mode === 'comics-rtl';
+  const isDual = mode === 'comics-dual';
+  const isScroll = mode === 'comics-scroll';
+
+  if (isScroll) {
+    container.innerHTML = `<div style="height:100%;overflow-y:auto;background:#0a0a0a;padding:6px 0" id="comics-scroll-c">
+      ${imgs.map(o => `<div style="display:flex;justify-content:center;margin-bottom:3px"><img src="${o.url}" style="max-width:100%;display:block" loading="lazy"/></div>`).join('')}
+    </div><div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>`;
+    const sc = document.getElementById('comics-scroll-c');
+    const onS = () => {
+      const p = sc.scrollHeight > sc.clientHeight ? sc.scrollTop/(sc.scrollHeight-sc.clientHeight) : 1;
+      RS.currentPage = Math.round(p * imgs.length);
+      updateProgress(RS.fileId, RS.currentPage, imgs.length);
+    };
+    sc.addEventListener('scroll', onS, { passive:true });
+    RS.activeListeners.push({ target:sc, type:'scroll', fn:onS });
+    return;
+  }
+
+  const cur  = Math.max(0, Math.min(imgs.length - 1, RS.currentPage));
+  const urls = isDual
+    ? [imgs[isRTL ? cur+1 : cur]?.url, imgs[isRTL ? cur : cur+1]?.url].filter(Boolean)
+    : [imgs[cur]?.url].filter(Boolean);
+
+  container.innerHTML = `
+    <div class="comics-reader ${isRTL?'rtl-mode':''}">
+      <div class="comics-pages">
+        ${urls.map(u => `<div class="comics-page"><img src="${u}" loading="eager"/></div>`).join('')}
+      </div>
+      <div class="comics-nav nav-left" onclick="comicsNav(-1)">
+        <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </div>
+      <div class="comics-nav nav-right" onclick="comicsNav(1)">
+        <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+      <div class="comics-counter">${cur+1} / ${imgs.length}</div>
+    </div>
+    <div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>`;
+
+  const kh = (e) => {
+    if (!document.getElementById('reader').classList.contains('open')) return;
+    if (e.key==='ArrowRight') comicsNav(1);
+    if (e.key==='ArrowLeft')  comicsNav(-1);
+  };
+  document.addEventListener('keydown', kh);
+  RS.activeListeners.push({ target:document, type:'keydown', fn:kh });
+}
+
+function comicsNav(dir) {
+  const imgs = RS.comicsImages;
+  const step = RS.mode==='comics-dual' ? 2 : 1;
+  const real = RS.mode==='comics-rtl' ? -dir : dir;
+  RS.currentPage = Math.max(0, Math.min(imgs.length - step, RS.currentPage + real * step));
+  updateProgress(RS.fileId, RS.currentPage, imgs.length);
+  renderComics(document.getElementById('reader-content'), document.getElementById('reader-controls'));
+}
+
+// ── DOCX / Novel ──
+function renderDocx(container, controls) {
+  controls.innerHTML = '';
+  const mode = RS.mode;
+  const cls  = { 'docx-doc':'', 'docx-novel':'novel-dark', 'docx-parchment':'parchment', 'docx-focus':'focus-read' }[mode] || '';
+  container.innerHTML = `
+    <div class="novel-reader ${cls}" id="novel-reader">
+      <div class="novel-content">${RS.docxHtml}</div>
+    </div>
+    <div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>`;
+  const el = document.getElementById('novel-reader');
+  const onS = () => {
+    const p = el.scrollHeight > el.clientHeight ? el.scrollTop/(el.scrollHeight-el.clientHeight) : 1;
+    RS.currentPage = Math.round(p * 100);
+    updateProgress(RS.fileId, RS.currentPage, 100);
+  };
+  el.addEventListener('scroll', onS, { passive:true });
+  RS.activeListeners.push({ target:el, type:'scroll', fn:onS });
+}
+
+// ── PPTX ──
+function renderPPTX(container, controls) {
+  const slides = RS.pptxSlides;
+  if (!slides.length) { container.innerHTML='<div class="pdf-loading"><p>No slides parsed</p></div>'; return; }
+
+  if (RS.mode === 'pptx-grid') { renderPPTXGrid(container); controls.innerHTML=''; return; }
+
+  const cur   = Math.max(0, Math.min(slides.length-1, RS.currentPage));
+  const slide = slides[cur];
+  const showNotes = RS.mode === 'pptx-presenter';
+  const bodyLines = (slide.body||'').split('\n').filter(Boolean);
+
+  container.innerHTML = `
+    <div class="pptx-reader">
+      <div class="pptx-slide-view">
+        <div class="pptx-slide">
+          <div class="pptx-slide-inner">
+            <div class="pptx-slide-title">${escHtml(slide.title)}</div>
+            <div class="pptx-slide-body">${bodyLines.map(l=>`<div style="margin-bottom:.45em">· ${escHtml(l)}</div>`).join('')}</div>
+          </div>
+          <div class="pptx-slide-accent"></div>
+          <div class="pptx-slide-num">${cur+1} / ${slides.length}</div>
+        </div>
+      </div>
+      ${showNotes ? `<div style="padding:10px 18px;background:var(--bg3);border-top:1px solid var(--border);font-size:12.5px;color:var(--text2);max-height:90px;overflow-y:auto"><em>Presenter notes would appear here</em></div>` : ''}
+      <div class="pptx-thumbs">
+        ${slides.map((s,i)=>`<div class="pptx-thumb ${i===cur?'active':''}" onclick="pptxGoto(${i})">
+          <div class="pptx-thumb-inner"><div class="pptx-thumb-title">${escHtml(s.title||'')}</div><div class="pptx-thumb-body">${escHtml((s.body||'').slice(0,60))}</div></div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>`;
+
+  controls.innerHTML = `<div class="pptx-nav">
+    <button class="btn-icon" onclick="pptxNav(-1)"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <span class="pptx-counter">${cur+1} / ${slides.length}</span>
+    <button class="btn-icon" onclick="pptxNav(1)"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </div>`;
+
+  const kh = (e) => {
+    if (!document.getElementById('reader').classList.contains('open')) return;
+    if (e.key==='ArrowRight'||e.key==='ArrowDown') pptxNav(1);
+    if (e.key==='ArrowLeft' ||e.key==='ArrowUp')   pptxNav(-1);
+  };
+  document.addEventListener('keydown', kh);
+  RS.activeListeners.push({ target:document, type:'keydown', fn:kh });
+
+  // Scroll active thumb into view
+  requestAnimationFrame(() => document.querySelector('.pptx-thumb.active')?.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' }));
+}
+
+function renderPPTXGrid(container) {
+  const slides = RS.pptxSlides;
+  container.innerHTML = `
+    <div style="height:100%;overflow-y:auto;padding:18px;background:var(--bg)">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px">
+        ${slides.map((s,i)=>`<div onclick="pptxGoto(${i})" style="cursor:pointer;background:white;border-radius:4px;aspect-ratio:16/9;padding:10px;display:flex;flex-direction:column;gap:5px;border:2px solid ${i===RS.currentPage?'var(--accent)':'transparent'};transition:all .2s;box-shadow:0 2px 8px rgba(0,0,0,.2)">
+          <div style="font-size:8px;font-weight:700;color:#1a293d;line-height:1.3;font-family:serif">${escHtml(s.title||'Slide '+(i+1))}</div>
+          <div style="font-size:6.5px;color:#4b5563;line-height:1.4">${escHtml((s.body||'').slice(0,80))}</div>
+          <div style="margin-top:auto;font-size:7px;color:#9ca3af;text-align:right">${i+1}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>`;
+}
+
+function pptxNav(dir) {
+  RS.currentPage = Math.max(0, Math.min(RS.pptxSlides.length-1, RS.currentPage+dir));
+  updateProgress(RS.fileId, RS.currentPage, RS.pptxSlides.length);
+  renderPPTX(document.getElementById('reader-content'), document.getElementById('reader-controls'));
+}
+function pptxGoto(i) {
+  RS.currentPage = i;
+  RS.mode = RS.mode === 'pptx-grid' ? 'pptx-slide' : RS.mode;
+  renderModeSelector();
+  renderPPTX(document.getElementById('reader-content'), document.getElementById('reader-controls'));
+}
+
+// ═══════════════════════════════════════════════════
+// FOCUS MODE
+// ═══════════════════════════════════════════════════
+function toggleFocusMode() {
+  RS.focusMode = !RS.focusMode;
+  document.getElementById('reader-header').classList.toggle('focus-mode', RS.focusMode);
+  document.getElementById('focus-btn').classList.toggle('active', RS.focusMode);
+}
+
+function updateHUD() {
+  const f = RS.file; if (!f) return;
+  const prog = f.readingProgress || 0;
+  const el1 = document.getElementById('hud-progress');
+  const el2 = document.getElementById('hud-position');
+  if (el1) el1.textContent = prog + '%';
+  if (el2) el2.textContent = RS.totalPages > 1 ? `Page ${RS.currentPage+1} / ${RS.totalPages}` : `${prog}% read`;
+}
+
+// ═══════════════════════════════════════════════════
+// READER CLOSE + MEMORY CLEANUP
+// ═══════════════════════════════════════════════════
+function closeReader() {
+  document.getElementById('reader').classList.remove('open');
+  cleanupReader();
+  loadData().then(renderAll);
+}
+
+async function cleanupReader() {
+  // 1. Remove all event listeners registered during this session
+  RS.activeListeners.forEach(({ target, type, fn }) => {
+    try { target.removeEventListener(type, fn); } catch(_) {}
+  });
+
+  // 2. Revoke all CBZ object URLs — critical for memory
+  RS.comicsImages.forEach(o => {
+    try { URL.revokeObjectURL(o.url); } catch(_) {}
+  });
+
+  // 3. Destroy PDF.js document to free WASM memory
+  if (RS.pdfDoc) {
+    try { RS.pdfDoc.destroy(); } catch(_) {}
+  }
+
+  // 4. Reset state
+  RS = createFreshRS();
+
+  // 5. Clear DOM
+  const content = document.getElementById('reader-content');
+  if (content) content.innerHTML = '<div class="focus-hud" id="focus-hud"><div class="hud-dot"></div><span id="hud-progress">0%</span><span style="color:var(--border2)">|</span><span id="hud-position">Page 1</span></div>';
+  const controls = document.getElementById('reader-controls');
+  if (controls) controls.innerHTML = '';
+  const header = document.getElementById('reader-header');
+  if (header) header.classList.remove('focus-mode');
+  const modeSel = document.getElementById('mode-selector');
+  if (modeSel) modeSel.innerHTML = '';
+}
+
+// ═══════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+    const s = Object.assign(document.createElement('script'), { src, onload:res, onerror:rej });
+    document.head.appendChild(s);
+  });
+}
+
+function fmtSize(b) {
+  if (!b) return '—';
+  if (b < 1024) return b + 'B';
+  if (b < 1048576) return (b/1024).toFixed(1)+'KB';
+  return (b/1048576).toFixed(1)+'MB';
+}
+
+function timeAgo(ts) {
+  if (!ts) return 'Never';
+  const d = (Date.now()-ts)/1000;
+  if (d < 60) return 'just now';
+  if (d < 3600) return Math.floor(d/60)+'m ago';
+  if (d < 86400) return Math.floor(d/3600)+'h ago';
+  return Math.floor(d/86400)+'d ago';
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type='info') {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span>${{success:'✓',error:'✕',info:'·'}[type]||'·'}</span><span>${escHtml(msg)}</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(), 400); }, 2800);
+}
+
+// ═══════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════
+init().catch(e => console.error('[init]', e));
+</script>
+</body>
+</html>
